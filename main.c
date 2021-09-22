@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <stdint.h>
+
 
 // Campos da tabela de páginas
 #define PT_FIELDS 6           // quantidade de campos na tabela
@@ -42,6 +42,13 @@ int fifo(
     signed char** page_table, int number_pages, int previous_page, 
     int fifo_first_frame, int number_frames, int clock ) 
 {
+    for ( int page = 0; page < number_pages; page++) // Encontra página mapeada
+    {
+        if (page_table[page][PT_MAPPED] == 1 && page_table[page][PT_FRAMEID] == fifo_first_frame)
+        {
+            return page;
+        }
+    }    
     return -1;
 }
 
@@ -71,8 +78,9 @@ int random_page(
     int fifo_first_frame, int number_frames, int clock ) 
 {
     int page = rand() % number_pages;
-    while ( page_table[page][PT_MAPPED] == 0 ) // Encontra página mapeada
-    page = rand() % number_pages;
+    while ( page_table[page][PT_MAPPED] == 0 ) { // Encontra página mapeada
+        page = rand() % number_pages;
+    }
     return page;
 }
 
@@ -156,9 +164,10 @@ int simulate(
     return 1; // Page Fault!
 }
 
-void run(signed char **page_table, int number_pages, int *previous_page, int *fifo_first_frame,
-         int *physical_memory, int *number_free_frames, int number_frames,
-         int *previous_free, eviction_function evict, int clock_freq) {
+void run(
+    signed char **page_table, int number_pages, int *previous_page, int *fifo_first_frame, int *physical_memory, 
+    int *number_free_frames, int number_frames, int *previous_free, eviction_function evict, int clock_freq ) 
+{
     int virtual_address;
     char access_type;
     int i = 0;
@@ -167,10 +176,12 @@ void run(signed char **page_table, int number_pages, int *previous_page, int *fi
     while (scanf("%d", &virtual_address) == 1) {
         getchar();
         scanf("%c", &access_type);
-        clock = ((i+1) % clock_freq) == 0;
-        faults += simulate(page_table, number_pages, previous_page, fifo_first_frame,
-                           physical_memory, number_free_frames, number_frames, previous_free,
-                           virtual_address, access_type, evict, clock);
+        clock = ( (i+1) % clock_freq ) == 0;
+        faults += simulate(
+            page_table, number_pages, previous_page, fifo_first_frame, 
+            physical_memory, number_free_frames, number_frames, previous_free, 
+            virtual_address, access_type, evict, clock
+        );
         i++;
     }
     printf("%d\n", faults);
@@ -203,17 +214,19 @@ int main(int argc, char **argv) {
     read_header(&number_pages, &number_frames);
 
     // Aponta para cada função que realmente roda a política de parse
-    paging_policy_table policies[] = {
-            {"fifo", *fifo},
-            {"second_chance", *second_chance},
-            {"nru", *nru},
-            {"aging", *aging},
-            {"random", *random_page}
+    paging_policy_table policies[] = 
+    {
+        {"fifo", *fifo},
+        {"second_chance", *second_chance},
+        {"nru", *nru},
+        {"aging", *aging},
+        {"random", *random_page}
     };
 
-    int n_policies = sizeof(policies) / sizeof(policies[0]);
+    // Seleciona o algoritimo escolhido
+    int number_policies = sizeof(policies) / sizeof(policies[0]);
     eviction_function evict = NULL;
-    for (int i = 0; i < n_policies; i++) {
+    for (int i = 0; i < number_policies; i++) {
         if (strcmp(policies[i].name, algorithm) == 0) {
             evict = policies[i].function;
             break;
@@ -225,16 +238,16 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    // Aloca tabela de páginas
+    // Aloca tabela de páginas, onde cada celula e um inteiro de 1 Byte (8bits)
     signed char **page_table = (signed char **) malloc(number_pages * sizeof(signed char*));
     for (int i = 0; i < number_pages; i++) {
         page_table[i] = (signed char *) malloc(PT_FIELDS * sizeof(signed char));
-        page_table[i][PT_FRAMEID] = -1;
-        page_table[i][PT_MAPPED] = 0;
-        page_table[i][PT_DIRTY] = 0;
-        page_table[i][PT_REFERENCE_BIT] = 0;
-        page_table[i][PT_REFERENCE_MODE] = 0;
-        page_table[i][PT_AGING_COUNTER] = 0;
+        page_table[i][PT_FRAMEID] = -1;       // Endereço da memória física
+        page_table[i][PT_MAPPED] = 0;         // Endereço presente na tabela
+        page_table[i][PT_DIRTY] = 0;          // Página dirty
+        page_table[i][PT_REFERENCE_BIT] = 0;  // Bit de referencia
+        page_table[i][PT_REFERENCE_MODE] = 0; // Tipo de acesso, converter para char
+        page_table[i][PT_AGING_COUNTER] = 0;  // Contador para aging
     }
 
     // Memória Real é apenas uma tabela de bits (na verdade uso ints) indicando
@@ -250,8 +263,11 @@ int main(int argc, char **argv) {
 
     // Roda o simulador
     srand(time(NULL));
-    run(page_table, number_pages, &previous_page, &fifo_first_frame, physical_memory,
-        &number_free_frames, number_frames, &previous_free, evict, clock_freq);
+
+    run(
+        page_table, number_pages, &previous_page, &fifo_first_frame, physical_memory,
+        &number_free_frames, number_frames, &previous_free, evict, clock_freq
+    );
 
     // Liberando os mallocs
     for (int i = 0; i < number_pages; i++) {
