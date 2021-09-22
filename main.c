@@ -19,7 +19,7 @@
 #define WRITE 'w'
 
 // Define a função que simula o algoritmo da política de subst.
-typedef int (*eviction_function)(signed char**, int, int, int, int, int);
+typedef int (*eviction_function)(signed char**, int, int, int*, int, int);
 
 typedef struct {
     char *name;
@@ -38,13 +38,47 @@ typedef struct {
 //
 // Adicione mais parâmetros caso ache necessário
 
+void formated_cell(int cell){
+    if (cell == -1)
+    {
+        printf("  X   |");
+    } else if (cell > 9)
+    {
+        printf("  %d  |", cell);
+    } else
+    {
+        printf("  %d   |", cell);
+    }
+}
+
+void print_page_table(signed char** page_table, int number_pages){
+    printf("║         | Page | FID  |  M   |  D   |  R   |  AT  |\n");
+    for (int i = 0; i < number_pages; i++) {                        
+        printf("║         |");
+        formated_cell( i );
+        formated_cell( page_table[i][PT_FRAMEID]);            // Endereço da memória física
+        formated_cell( page_table[i][PT_MAPPED]);             // Endereço presente na tabela
+        formated_cell( page_table[i][PT_DIRTY]);              // Página dirty
+        formated_cell( page_table[i][PT_REFERENCE_BIT]);      // Bit de referencia
+
+        if ( page_table[i][PT_REFERENCE_MODE] == WRITE || page_table[i][PT_REFERENCE_MODE] == READ)
+        {
+            printf("  %c   |", page_table[i][PT_REFERENCE_MODE]); // Tipo de acesso, converter para char
+        } else { printf("  -   |"); }
+                
+        // page_table[i][PT_AGING_COUNTER]   // Contador para aging        
+        printf("\n");
+    }
+    printf("║\n");
+}
+
 int fifo( 
     signed char** page_table, int number_pages, int previous_page, 
-    int fifo_first_frame, int number_frames, int clock ) 
+    int* fifo_first_frame, int number_frames, int clock ) 
 {
     for ( int page = 0; page < number_pages; page++) // Encontra página mapeada
     {
-        if (page_table[page][PT_MAPPED] == 1 && page_table[page][PT_FRAMEID] == fifo_first_frame)
+        if (page_table[page][PT_MAPPED] == 1 && page_table[page][PT_FRAMEID] == *fifo_first_frame)
         {
             return page;
         }
@@ -54,9 +88,22 @@ int fifo(
 
 int second_chance( 
     signed char** page_table, int number_pages, int previous_page,
-    int fifo_first_frame, int number_frames, int clock ) 
+    int* fifo_first_frame, int number_frames, int clock ) 
 {
-    return -1;
+    for ( int page = 0; page < number_pages; page++) // Encontra página mapeada
+    {
+        if (page_table[page][PT_MAPPED] == 1 && page_table[page][PT_FRAMEID] == *fifo_first_frame)
+        {
+            if ( page_table[page][PT_REFERENCE_BIT] == 1 )
+            {
+                *fifo_first_frame = (*fifo_first_frame + 1) % number_frames;
+            } else
+            {
+                return page;   
+            }            
+        }
+    }    
+    return fifo(page_table, number_pages, previous_page, fifo_first_frame, number_frames, clock);;
 }
 
 int nru(
@@ -110,31 +157,35 @@ int simulate(
     char access_type, eviction_function evict, int clock ) 
 {
     if ( virtual_address >= number_pages || virtual_address < 0 ) {
-        printf("Invalid access \n");
+        printf("Invalid access: \n");
         exit(1);
     }
 
     if ( page_table[virtual_address][PT_MAPPED] == 1 ) {
+        printf("║ ╚═══> Pagina mapeada na memoria fisica...\n║\n");
         page_table[virtual_address][PT_REFERENCE_BIT] = 1;
         return 0; // Not Page Fault!
     }
 
+    printf("║ ╚═╦═> Pagina não mapeada na memoria fisica\n");
     int next_frame_address;
     if ((*number_free_frames) > 0) { // Ainda temos memória física livre!
         next_frame_address = 
-            find_next_frame(physical_memory, number_free_frames, number_frames, previous_free);
+            find_next_frame(physical_memory, number_free_frames, number_frames, previous_free);        
+        printf("║   ╚═══> Tem memória física livre, frame: %d\n║\n", next_frame_address);
         if (*fifo_first_frame == -1)
             *fifo_first_frame = next_frame_address;
         *number_free_frames = *number_free_frames - 1;
     } else { // Precisamos liberar a memória!
         assert(*number_free_frames == 0);
         int to_free = 
-            evict(page_table, number_pages, *previous_page, *fifo_first_frame, number_frames, clock);
+            evict(page_table, number_pages, *previous_page, fifo_first_frame, number_frames, clock);
         assert(to_free >= 0);
         assert(to_free < number_pages);
         assert(page_table[to_free][PT_MAPPED] != 0);
-
+        
         next_frame_address = page_table[to_free][PT_FRAMEID];
+        printf("║   ╚═══> Precisamos liberar a memória, Page despejado: %d, Frame liberado: %d\n║\n", to_free, next_frame_address);
         *fifo_first_frame = (*fifo_first_frame + 1) % number_frames;
         // Libera pagina antiga
         page_table[to_free][PT_FRAMEID] = -1;
@@ -157,8 +208,9 @@ int simulate(
     *previous_page = virtual_address;
 
     if (clock == 1) {
-        for (int i = 0; i < number_pages; i++)
+        for (int i = 0; i < number_pages; i++){
             page_table[i][PT_REFERENCE_BIT] = 0;
+        }
     }
 
     return 1; // Page Fault!
@@ -173,18 +225,21 @@ void run(
     int i = 0;
     int clock = 0;
     int faults = 0;
+    printf("╔ Inicio da simulação...\n║\n");
     while (scanf("%d", &virtual_address) == 1) {
         getchar();
         scanf("%c", &access_type);
         clock = ( (i+1) % clock_freq ) == 0;
+        printf("╠═╦═> Endereco virtual: %d, acesso: %c, clock: %d\n", virtual_address, access_type, clock);
         faults += simulate(
             page_table, number_pages, previous_page, fifo_first_frame, 
             physical_memory, number_free_frames, number_frames, previous_free, 
             virtual_address, access_type, evict, clock
         );
         i++;
+        print_page_table(page_table, number_pages);
     }
-    printf("%d\n", faults);
+    printf("╚═══> Total de faltas: %d\n", faults);
 }
 
 int parse(char *opt) {
@@ -227,8 +282,9 @@ int main(int argc, char **argv) {
     int number_policies = sizeof(policies) / sizeof(policies[0]);
     eviction_function evict = NULL;
     for (int i = 0; i < number_policies; i++) {
-        if (strcmp(policies[i].name, algorithm) == 0) {
+        if (strcmp(policies[i].name, algorithm) == 0) {            
             evict = policies[i].function;
+            printf("Algoritimo escolhido: %s...\n", algorithm);
             break;
         }
     }
@@ -256,14 +312,15 @@ int main(int argc, char **argv) {
     for (int i = 0; i < number_frames; i++) {
         physical_memory[i] = 0;
     }
+    printf("Memoria alocada com %d frames...\n", number_frames);
     int number_free_frames = number_frames;
     int previous_free = -1;
     int previous_page = -1;
     int fifo_first_frame = -1;
 
-    // Roda o simulador
+    
     srand(time(NULL));
-
+    // Roda o simulador
     run(
         page_table, number_pages, &previous_page, &fifo_first_frame, physical_memory,
         &number_free_frames, number_frames, &previous_free, evict, clock_freq

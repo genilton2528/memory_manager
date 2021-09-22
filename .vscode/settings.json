@@ -2,6 +2,7 @@
     "files.associations": {
         "stdint.h": "c",
         "assert.h": "c",
-        "cstdint": "cpp"
+        "cstdint": "cpp",
+        "typeinfo": "c"
     }
 }
