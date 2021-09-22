@@ -51,23 +51,54 @@ void formated_cell(int cell){
     }
 }
 
-void print_page_table(signed char** page_table, int number_pages){
-    printf("║         | Page | FID  |  M   |  D   |  R   |  AT  |\n");
-    for (int i = 0; i < number_pages; i++) {                        
+signed char* return_frame(signed char** page_table, int number_pages, int frame_id) {
+    for ( int i = 0; i < number_pages; i++ ) {                        
+        if ( page_table[i][PT_FRAMEID] == frame_id )
+        {
+            return page_table[i];        
+        }
+    }
+    return NULL;
+}
+
+int index_of(signed char** page_table, int number_pages, int frame_id) {
+    for ( int i = 0; i < number_pages; i++ ) {                        
+        if ( page_table[i][PT_FRAMEID] == frame_id )
+        {
+            return i;        
+        }
+    }
+    return -1;
+}
+
+void print_frames(signed char** page_table, int number_pages, int number_frames){
+
+    signed char *frame = NULL;
+
+    printf("║         | Addr | Pag  |  M   |  D   |  R   |  AT  |\n");
+    for (int i = 0; i < number_frames; i++) {                                
+        frame = return_frame(page_table, number_pages, i);
         printf("║         |");
         formated_cell( i );
-        formated_cell( page_table[i][PT_FRAMEID]);            // Endereço da memória física
-        formated_cell( page_table[i][PT_MAPPED]);             // Endereço presente na tabela
-        formated_cell( page_table[i][PT_DIRTY]);              // Página dirty
-        formated_cell( page_table[i][PT_REFERENCE_BIT]);      // Bit de referencia
+        if ( frame == NULL )
+        {                        
+            printf("  X   |  -   |  -   |  -   |  -   |\n");
+        } else {           
+            formated_cell(index_of(page_table, number_pages, i)); // Pagina
+            formated_cell( frame[PT_MAPPED]);             // Endereço presente na tabela
+            formated_cell( frame[PT_DIRTY]);              // Página dirty
+            formated_cell( frame[PT_REFERENCE_BIT]);      // Bit de referencia
 
-        if ( page_table[i][PT_REFERENCE_MODE] == WRITE || page_table[i][PT_REFERENCE_MODE] == READ)
-        {
-            printf("  %c   |", page_table[i][PT_REFERENCE_MODE]); // Tipo de acesso, converter para char
-        } else { printf("  -   |"); }
+            if ( frame[PT_REFERENCE_MODE] == WRITE || frame[PT_REFERENCE_MODE] == READ)
+            {
+                printf("  %c   |", frame[PT_REFERENCE_MODE]); // Tipo de acesso, converter para char
+            } else { printf("  -   |"); }
                 
-        // page_table[i][PT_AGING_COUNTER]   // Contador para aging        
-        printf("\n");
+            // page_table[i][PT_AGING_COUNTER]   // Contador para aging        
+            printf("\n");
+
+            //printf("║         %d - %d\n", i, index_of(page_table, number_pages, i)); 
+        }        
     }
     printf("║\n");
 }
@@ -237,7 +268,7 @@ void run(
             virtual_address, access_type, evict, clock
         );
         i++;
-        print_page_table(page_table, number_pages);
+        print_frames(page_table, number_pages, number_frames);
     }
     printf("╚═══> Total de faltas: %d\n", faults);
 }
