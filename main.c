@@ -18,7 +18,7 @@
 #define WRITE 'w'
 
 // Define a função que simula o algoritmo da política de subst.
-typedef int (*eviction_function)(signed char **, int, int, int *, int, int);
+typedef int (*eviction_function)(unsigned char **, int, int, int *, int, int);
 
 typedef struct
 {
@@ -56,7 +56,7 @@ void formated_cell(int cell)
 }
 
 // Retorna uma linha da page_table, que e escolhido pelo id do frame
-signed char *return_frame(signed char **page_table, int number_pages, int frame_id)
+unsigned char *return_frame(unsigned char **page_table, int number_pages, int frame_id)
 {
     for (int i = 0; i < number_pages; i++)
     {
@@ -69,7 +69,7 @@ signed char *return_frame(signed char **page_table, int number_pages, int frame_
 }
 
 // Retorna o index da pagina de um determinado frame
-int index_of(signed char **page_table, int number_pages, int frame_id)
+int index_of(unsigned char **page_table, int number_pages, int frame_id)
 {
     for (int i = 0; i < number_pages; i++)
     {
@@ -81,13 +81,41 @@ int index_of(signed char **page_table, int number_pages, int frame_id)
     return -1;
 }
 
+// converte a variavel aging para binario
+void convert_byte(int aging) {    
+    char byte[] = { '0', '0', '0', '0', '0', '0', '0', '0' };
+    int decimal = aging;
+    for (int i = 7; i >= 0; i--, aging /= 2)
+    {
+        if (aging%2 == 0)
+        {
+            byte[i] = '0';
+        } else
+        {
+            byte[i] = '1';
+        }        
+    }
+    printf(" %s -", byte);
+    if ( decimal > 99)
+    {
+        printf(" %d |", decimal);
+    } else if ( decimal > 9)
+    {
+        printf(" %d  |", decimal);
+    }
+    else
+    {
+        printf(" %d   |", decimal);
+    }
+}
+
 // Imprimi uma tabela com os dados dos frames
-void print_frames(signed char **page_table, int number_pages, int number_frames)
+void print_frames(unsigned char **page_table, int number_pages, int number_frames)
 {
 
-    signed char *frame = NULL;
+    unsigned char *frame = NULL;
 
-    printf("║         | Addr | Pag  |  M   |  D   |  R   |  AT  |\n");
+    printf("║         | Addr | Pag  |  M   |  D   |  R   |  AT  |      Agin      |\n");
     for (int i = 0; i < number_frames; i++)
     {
         frame = return_frame(page_table, number_pages, i);
@@ -95,15 +123,14 @@ void print_frames(signed char **page_table, int number_pages, int number_frames)
         formated_cell(i);
         if (frame == NULL)
         {
-            printf("  X   |  -   |  -   |  -   |  -   |\n");
+            printf("  X   |  -   |  -   |  -   |  -   |       -        |\n");
         }
         else
         {
             formated_cell(index_of(page_table, number_pages, i)); // Pagina
             formated_cell(frame[PT_MAPPED]);                      // Endereço presente na tabela
             formated_cell(frame[PT_DIRTY]);                       // Página dirty
-            formated_cell(frame[PT_REFERENCE_BIT]);               // Bit de referencia
-
+            formated_cell(frame[PT_REFERENCE_BIT]);               // Bit de referencia            
             if (frame[PT_REFERENCE_MODE] == WRITE || frame[PT_REFERENCE_MODE] == READ)
             {
                 printf("  %c   |", frame[PT_REFERENCE_MODE]); // Tipo de acesso, converter para char
@@ -112,18 +139,16 @@ void print_frames(signed char **page_table, int number_pages, int number_frames)
             {
                 printf("  -   |");
             }
-
-            // page_table[i][PT_AGING_COUNTER]   // Contador para aging
+            convert_byte(frame[PT_AGING_COUNTER]);               // Contador para aging
             printf("\n");
-
-            //printf("║         %d - %d\n", i, index_of(page_table, number_pages, i));
         }
     }
     printf("║\n");
 }
 
+// Algoritimos
 int fifo(
-    signed char **page_table, int number_pages, int previous_page,
+    unsigned char **page_table, int number_pages, int previous_page,
     int *fifo_first_frame, int number_frames, int clock )
 {
     for (int page = 0; page < number_pages; page++) // Encontra página mapeada
@@ -137,7 +162,7 @@ int fifo(
 }
 
 int second_chance(
-    signed char **page_table, int number_pages, int previous_page,
+    unsigned char **page_table, int number_pages, int previous_page,
     int *fifo_first_frame, int number_frames, int clock )
 {
     int page = 0;
@@ -159,7 +184,7 @@ int second_chance(
 }
 
 int nru(
-    signed char **page_table, int number_pages, int previous_page,
+    unsigned char **page_table, int number_pages, int previous_page,
     int *fifo_first_frame, int number_frames, int clock )
 {
     int R = 0, M = 1;
@@ -188,15 +213,34 @@ int nru(
     
 }
 
+// Decrementa o aging
+void age(unsigned char **page_table, int number_pages){
+    for (int page = 0; page < number_pages; page++)
+    {
+        page_table[page][PT_AGING_COUNTER] /= 2;
+    }
+}
+
 int aging(
-    signed char **page_table, int number_pages, int previous_page,
+    unsigned char **page_table, int number_pages, int previous_page,
     int *fifo_first_frame, int number_frames, int clock )
 {
-    return -1;
+    int smaller = index_of(page_table, number_pages, 0); // Retorna a pagina que esta alocada no FRAME_ID 0
+    for (int page = 0; page < number_pages; page++) // Encontra página mapeada
+    {
+        if ( page_table[page][PT_MAPPED] == 1 )
+        {               
+            if ( page_table[page][PT_AGING_COUNTER] <= page_table[smaller][PT_AGING_COUNTER] )
+            {                
+                smaller = page;
+            }
+        }
+    }
+    return smaller;
 }
 
 int random_page(
-    signed char **page_table, int number_pages, int previous_page,
+    unsigned char **page_table, int number_pages, int previous_page,
     int *fifo_first_frame, int number_frames, int clock )
 {
     int page = rand() % number_pages;
@@ -229,7 +273,7 @@ int find_next_frame(
 }
 
 // reseta os bits de referencia
-void reset_reference_bit( signed char **page_table, int number_pages, int clock ){
+void reset_reference_bit( unsigned char **page_table, int number_pages, int clock ){
     if (clock == 1)
     {
         for (int i = 0; i < number_pages; i++)
@@ -240,7 +284,7 @@ void reset_reference_bit( signed char **page_table, int number_pages, int clock 
 }
 
 int simulate(
-    signed char **page_table, int number_pages, int *previous_page,
+    unsigned char **page_table, int number_pages, int *previous_page,
     int *fifo_first_frame, int *physical_memory, int *number_free_frames,
     int number_frames, int *previous_free, int virtual_address,
     char access_type, eviction_function evict, int clock)
@@ -255,6 +299,7 @@ int simulate(
     {
         printf("║ ╚═══> Pagina mapeada na memoria fisica...\n║\n");
         page_table[virtual_address][PT_REFERENCE_BIT] = 1;
+        page_table[virtual_address][PT_AGING_COUNTER] += 128;
         if (access_type == WRITE)
         {
             page_table[virtual_address][PT_DIRTY] = 1;
@@ -298,7 +343,7 @@ int simulate(
     }
 
     // Coloca endereço físico na tabela de páginas!
-    signed char *page_table_data = page_table[virtual_address];
+    unsigned char *page_table_data = page_table[virtual_address];
     page_table_data[PT_FRAMEID] = next_frame_address;
     page_table_data[PT_MAPPED] = 1;
     if (access_type == WRITE)
@@ -306,7 +351,8 @@ int simulate(
         page_table_data[PT_DIRTY] = 1;
     }
     page_table_data[PT_REFERENCE_BIT] = 1;
-    page_table_data[PT_REFERENCE_MODE] = (signed char)access_type;
+    page_table[virtual_address][PT_AGING_COUNTER] += 128;
+    page_table_data[PT_REFERENCE_MODE] = (unsigned char)access_type;
     *previous_page = virtual_address;
 
     reset_reference_bit(page_table, number_pages, clock);
@@ -315,7 +361,7 @@ int simulate(
 }
 
 void run(
-    signed char **page_table, int number_pages, int *previous_page, int *fifo_first_frame, int *physical_memory,
+    unsigned char **page_table, int number_pages, int *previous_page, int *fifo_first_frame, int *physical_memory,
     int *number_free_frames, int number_frames, int *previous_free, eviction_function evict, int clock_freq)
 {
     int virtual_address;
@@ -329,6 +375,7 @@ void run(
         getchar();
         scanf("%c", &access_type);
         clock = ((i + 1) % clock_freq) == 0;
+        age(page_table, number_pages);
         printf("╠═╦═> Endereco virtual: %d, acesso: %c, clock: %d\n", virtual_address, access_type, clock);
         faults += simulate(
             page_table, number_pages, previous_page, fifo_first_frame,
@@ -400,10 +447,10 @@ int main(int argc, char **argv)
     }
 
     // Aloca tabela de páginas, onde cada celula e um inteiro de 1 Byte (8bits)
-    signed char **page_table = (signed char **)malloc(number_pages * sizeof(signed char *));
+    unsigned char **page_table = (unsigned char **)malloc(number_pages * sizeof(unsigned char *));
     for (int i = 0; i < number_pages; i++)
     {
-        page_table[i] = (signed char *)malloc(PT_FIELDS * sizeof(signed char));
+        page_table[i] = (unsigned char *)malloc(PT_FIELDS * sizeof(unsigned char));
         page_table[i][PT_FRAMEID] = -1;       // Endereço da memória física
         page_table[i][PT_MAPPED] = 0;         // Endereço presente na tabela
         page_table[i][PT_DIRTY] = 0;          // Página dirty
