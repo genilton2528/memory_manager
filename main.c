@@ -124,7 +124,7 @@ void print_frames(signed char **page_table, int number_pages, int number_frames)
 
 int fifo(
     signed char **page_table, int number_pages, int previous_page,
-    int *fifo_first_frame, int number_frames, int clock)
+    int *fifo_first_frame, int number_frames, int clock )
 {
     for (int page = 0; page < number_pages; page++) // Encontra página mapeada
     {
@@ -138,7 +138,7 @@ int fifo(
 
 int second_chance(
     signed char **page_table, int number_pages, int previous_page,
-    int *fifo_first_frame, int number_frames, int clock)
+    int *fifo_first_frame, int number_frames, int clock )
 {
     int page = 0;
 
@@ -160,21 +160,44 @@ int second_chance(
 
 int nru(
     signed char **page_table, int number_pages, int previous_page,
-    int fifo_first_frame, int number_frames, int clock)
+    int *fifo_first_frame, int number_frames, int clock )
 {
-    return -1;
+    int R = 0, M = 1;
+    int class[4][2];
+    class[0][R] = 0; class[0][M] = 0;
+    class[1][R] = 0; class[1][M] = 1;
+    class[2][R] = 1; class[2][M] = 0;
+    class[3][R] = 1; class[3][M] = 1;
+
+    // Percorre as classes
+    for (int i = 0; i < 4; i++)
+    {
+        // Percorre as paginas
+        for (int page = 0; page < number_pages; page++) // Encontra página mapeada
+        {
+            if (
+                page_table[page][PT_MAPPED] == 1 && 
+                page_table[page][PT_DIRTY] == class[i][M] &&
+                page_table[page][PT_REFERENCE_BIT] == class[i][R]
+            )
+            {
+                return page;
+            }
+        }
+    }
+    
 }
 
 int aging(
     signed char **page_table, int number_pages, int previous_page,
-    int fifo_first_frame, int number_frames, int clock)
+    int *fifo_first_frame, int number_frames, int clock )
 {
     return -1;
 }
 
 int random_page(
     signed char **page_table, int number_pages, int previous_page,
-    int fifo_first_frame, int number_frames, int clock)
+    int *fifo_first_frame, int number_frames, int clock )
 {
     int page = rand() % number_pages;
     while (page_table[page][PT_MAPPED] == 0)
@@ -205,6 +228,17 @@ int find_next_frame(
     return *previous_free;
 }
 
+// reseta os bits de referencia
+void reset_reference_bit( signed char **page_table, int number_pages, int clock ){
+    if (clock == 1)
+    {
+        for (int i = 0; i < number_pages; i++)
+        {
+            page_table[i][PT_REFERENCE_BIT] = 0;
+        }
+    }
+}
+
 int simulate(
     signed char **page_table, int number_pages, int *previous_page,
     int *fifo_first_frame, int *physical_memory, int *number_free_frames,
@@ -221,6 +255,11 @@ int simulate(
     {
         printf("║ ╚═══> Pagina mapeada na memoria fisica...\n║\n");
         page_table[virtual_address][PT_REFERENCE_BIT] = 1;
+        if (access_type == WRITE)
+        {
+            page_table[virtual_address][PT_DIRTY] = 1;
+        }
+        reset_reference_bit(page_table, number_pages, clock);
         return 0; // Not Page Fault!
     }
 
@@ -270,13 +309,7 @@ int simulate(
     page_table_data[PT_REFERENCE_MODE] = (signed char)access_type;
     *previous_page = virtual_address;
 
-    if (clock == 1)
-    {
-        for (int i = 0; i < number_pages; i++)
-        {
-            page_table[i][PT_REFERENCE_BIT] = 0;
-        }
-    }
+    reset_reference_bit(page_table, number_pages, clock);
 
     return 1; // Page Fault!
 }
