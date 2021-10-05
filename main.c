@@ -306,19 +306,44 @@ void move_node_to_tail(int key, struct LRUCache* cache) {
 }
 
 int has(int value, struct LRUCache* cache) {
-    for (int i = 0; i < cache->len; i++)
+    int hashKey = value % cache->capacity;
+
+    if( cache->hashmap[hashKey] != NULL &&  cache->hashmap[hashKey]->value == value ) {
+        return hashKey;
+    }
+    
+    for (int i = 0; i < cache->capacity; i++)
     {
-        if (cache->hashmap[i] != NULL && cache->hashmap[i]->value == value) {
-            return i;
+        hashKey = (hashKey + 1) % cache->capacity;   
+        if (cache->hashmap[hashKey] != NULL && cache->hashmap[hashKey]->value == value) {
+            return hashKey;
         }
     }
+
     return -1;
+}
+
+int nextHashKey(int value, struct LRUCache* cache) {
+    int key = value % cache->capacity;
+    
+    if (cache->len == cache->capacity)
+    {
+        return -1;
+    }
+    if( cache->hashmap[key] == NULL ) {
+        return key;
+    }
+    while (cache->hashmap[key] != NULL)
+    {
+        key = (key + 1) % cache->capacity;
+    }
+    return key;
 }
 
 int put(int value, struct LRUCache* cache) {
     struct ListNode* removed = NULL;
     int removedValue = -1;
-    int key = cache->len;
+    int key;
     // Verifica se o valor ja esta na lista, caso true retorna o index, se false retorna -1
     int indexOf = has( value, cache );     
     if ( indexOf >= 0 ) {
@@ -338,7 +363,10 @@ int put(int value, struct LRUCache* cache) {
             cache->head->next->prev = cache->head;
             cache->len--;
             free(removed);
+        } else {
+            key = nextHashKey( value, cache);
         }
+        
         struct ListNode* newNode = initNode(value, key);
         cache->hashmap[key] = newNode;
         newNode->prev = cache->tail->prev;
@@ -367,7 +395,7 @@ void printList(struct LRUCache* cache){
 
     struct ListNode* current = cache->head->next;
     
-    printf("║\n║         Head -> ");
+    printf("║\n║         LRUCache: Head -> ");
 
     while( current->next != NULL ) {
         printf("{ %d }[%d] -> ", current->value, current->key);
