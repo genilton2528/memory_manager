@@ -130,6 +130,19 @@ void age(unsigned char **page_table, int number_pages){
     }
 }
 
+// Retorna o index da pagina de um determinado frame
+int index_of(unsigned char **page_table, int number_pages, int frame_id)
+{
+    for (int i = 0; i < number_pages; i++)
+    {
+        if (page_table[i][PT_FRAMEID] == frame_id)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
 int aging(
     unsigned char **page_table, int number_pages, int previous_page,
     int *fifo_first_frame, int number_frames, int virtual_address, struct LRUCache* cache, int clock )
