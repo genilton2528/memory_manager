@@ -697,4 +697,11 @@ int main(int argc, char **argv)
     }
     free(page_table);
     free(physical_memory);
+
+    for (int i = 0; i < number_frames; i++)
+    {
+        free(cache.hashmap[i]);
+    }
+
+    return 0;
 }
