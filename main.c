@@ -55,121 +55,13 @@ typedef struct
 //
 // Adicione mais parâmetros caso ache necessário
 
-// Printa o campo da tabela formatado
-void formated_cell(int cell)
-{
-    if (cell == -1)
-    {
-        printf("  X   |");
-    }
-    else if (cell > 9)
-    {
-        printf("  %d  |", cell);
-    }
-    else
-    {
-        printf("  %d   |", cell);
-    }
-}
-
-// Retorna uma linha da page_table, que e escolhido pelo id do frame
-unsigned char *return_frame(unsigned char **page_table, int number_pages, int frame_id)
-{
-    for (int i = 0; i < number_pages; i++)
-    {
-        if (page_table[i][PT_FRAMEID] == frame_id)
-        {
-            return page_table[i];
-        }
-    }
-    return NULL;
-}
-
-// Retorna o index da pagina de um determinado frame
-int index_of(unsigned char **page_table, int number_pages, int frame_id)
-{
-    for (int i = 0; i < number_pages; i++)
-    {
-        if (page_table[i][PT_FRAMEID] == frame_id)
-        {
-            return i;
-        }
-    }
-    return -1;
-}
-
-// converte a variavel aging para binario
-void convert_byte(int aging) {    
-    char byte[] = { '0', '0', '0', '0', '0', '0', '0', '0' };
-    int decimal = aging;
-    for (int i = 7; i >= 0; i--, aging /= 2)
-    {
-        if (aging%2 == 0)
-        {
-            byte[i] = '0';
-        } else
-        {
-            byte[i] = '1';
-        }        
-    }
-    printf(" %s -", byte);
-    if ( decimal > 99)
-    {
-        printf(" %d |", decimal);
-    } else if ( decimal > 9)
-    {
-        printf(" %d  |", decimal);
-    }
-    else
-    {
-        printf(" %d   |", decimal);
-    }
-}
-
-// Imprimi uma tabela com os dados dos frames
-void print_frames(unsigned char **page_table, int number_pages, int number_frames)
-{
-
-    unsigned char *frame = NULL;
-
-    printf("║         | Addr | Pag  |  M   |  D   |  R   |  AT  |      Agin      |\n");
-    for (int i = 0; i < number_frames; i++)
-    {
-        frame = return_frame(page_table, number_pages, i);
-        printf("║         |");
-        formated_cell(i);
-        if (frame == NULL)
-        {
-            printf("  X   |  -   |  -   |  -   |  -   |       -        |\n");
-        }
-        else
-        {
-            formated_cell(index_of(page_table, number_pages, i)); // Pagina
-            formated_cell(frame[PT_MAPPED]);                      // Endereço presente na tabela
-            formated_cell(frame[PT_DIRTY]);                       // Página dirty
-            formated_cell(frame[PT_REFERENCE_BIT]);               // Bit de referencia            
-            if (frame[PT_REFERENCE_MODE] == WRITE || frame[PT_REFERENCE_MODE] == READ)
-            {
-                printf("  %c   |", frame[PT_REFERENCE_MODE]); // Tipo de acesso, converter para char
-            }
-            else
-            {
-                printf("  -   |");
-            }
-            convert_byte(frame[PT_AGING_COUNTER]);               // Contador para aging
-            printf("\n");
-        }
-    }
-    printf("║\n");
-}
-
 // Algoritimos
 int fifo(
     unsigned char **page_table, int number_pages, int previous_page,
     int *fifo_first_frame, int number_frames, int virtual_address, struct LRUCache* cache, int clock )
 {
-    for (int page = 0; page < number_pages; page++) // Encontra página mapeada
-    {
+    for (int page = 0; page < number_pages; page++) { // Encontra página mapeada
+        // Verifica se e a primeira inserida
         if (page_table[page][PT_MAPPED] == 1 && page_table[page][PT_FRAMEID] == *fifo_first_frame)
         {
             return page;
@@ -184,9 +76,10 @@ int second_chance(
 {
     int page = 0;
 
-    for ( ; page < number_pages; )
-    {
-        if (page_table[page][PT_MAPPED] == 1 && page_table[page][PT_FRAMEID] == *fifo_first_frame){
+    for ( ; page < number_pages; ) {
+        // Encontra página mapeada e verifica se e a primeira inserida
+        if (page_table[page][PT_MAPPED] == 1 && page_table[page][PT_FRAMEID] == *fifo_first_frame) {
+            // Verifica o bit de referencia
             if (page_table[page][PT_REFERENCE_BIT] == 1) {
                 *fifo_first_frame = (*fifo_first_frame + 1) % number_frames;
                 page_table[page][PT_REFERENCE_BIT] = 0;
@@ -194,7 +87,7 @@ int second_chance(
                 break;
             }
         }
-        page = ( page + 1 ) % number_pages;        
+        page = ( page + 1 ) % number_pages; // Percorre as paginas de forma circular
     }     
     
     return page;    
@@ -206,20 +99,19 @@ int nru(
 {
     int R = 0, M = 1;
     int class[4][2];
+    // Classes
     class[0][R] = 0; class[0][M] = 0;
     class[1][R] = 0; class[1][M] = 1;
     class[2][R] = 1; class[2][M] = 0;
     class[3][R] = 1; class[3][M] = 1;
 
     // Percorre as classes
-    for (int i = 0; i < 4; i++)
-    {
+    for (int i = 0; i < 4; i++) {
         // Percorre as paginas
-        for (int page = 0; page < number_pages; page++) // Encontra página mapeada
-        {
+        for (int page = 0; page < number_pages; page++) {// Encontra página mapeada        
             if (
                 page_table[page][PT_MAPPED] == 1 && 
-                page_table[page][PT_DIRTY] == class[i][M] &&
+                page_table[page][PT_DIRTY] == class[i][M] && // Verifica se pertence a classe
                 page_table[page][PT_REFERENCE_BIT] == class[i][R]
             )
             {
@@ -243,12 +135,11 @@ int aging(
     int *fifo_first_frame, int number_frames, int virtual_address, struct LRUCache* cache, int clock )
 {
     int smaller = index_of(page_table, number_pages, 0); // Retorna a pagina que esta alocada no FRAME_ID 0
-    for (int page = 0; page < number_pages; page++) // Encontra página mapeada
-    {
-        if ( page_table[page][PT_MAPPED] == 1 )
-        {               
-            if ( page_table[page][PT_AGING_COUNTER] <= page_table[smaller][PT_AGING_COUNTER] )
-            {                
+    for (int page = 0; page < number_pages; page++) {
+        // Encontra página mapeada
+        if ( page_table[page][PT_MAPPED] == 1 ) {               
+            // Verifica se e a mais velha
+            if ( page_table[page][PT_AGING_COUNTER] <= page_table[smaller][PT_AGING_COUNTER] ) {                
                 smaller = page;
             }
         }
@@ -257,6 +148,7 @@ int aging(
 }
 
 // LRU
+// Inicia o nó da lista encadeada
 struct ListNode *initNode(int value, int key) {
     struct ListNode *node = (struct ListNode *)malloc(sizeof(struct ListNode));
     node->value = value;
@@ -266,6 +158,7 @@ struct ListNode *initNode(int value, int key) {
     return node;
 }
 
+// Inicia a lista encadeada
 struct LRUCache initCache(int capacity) {
     struct LRUCache cache;
     cache.capacity = capacity;   
@@ -286,7 +179,7 @@ struct LRUCache initCache(int capacity) {
 
 // Como as operações Get e PUT podem precisar mover um nó na lista linear bidirecional para o final, defina um método
 void move_node_to_tail(int key, struct LRUCache* cache) {
-    // Primeiro, o nó que aponta para a tabela hash KEY é retirado e o nó é nomeado pela simplicidade.
+    // Primeiro, o nó que aponta para a tabela hash KEY é retirado.
     //      hashmap[key]                               hashmap[key]
     //           |                                          |
     //           V              -->                         V
@@ -294,7 +187,7 @@ void move_node_to_tail(int key, struct LRUCache* cache) {
     struct ListNode* node = cache->hashmap[key];
     node->prev->next = node->next;
     node->next->prev = node->prev;
-    // Depois de inserir o nó no nó da cauda
+    // Depois de inserir o nó na cauda
     //                 hashmap[key]                 hashmap[key]
     //                      |                            |
     //                      V        -->                 V
@@ -305,13 +198,16 @@ void move_node_to_tail(int key, struct LRUCache* cache) {
     cache->tail->prev = node;
 }
 
+// Verifica a existencia de um valor na lista
 int has(int value, struct LRUCache* cache) {
-    int hashKey = value % cache->capacity;
+    int hashKey = value % cache->capacity; // Utiliza-se a função hash para determinar a posição
 
+    // Se for o valor pretendido, ele será retornado
     if( cache->hashmap[hashKey] != NULL &&  cache->hashmap[hashKey]->value == value ) {
         return hashKey;
     }
     
+    // Caso contrario o valor continua sendo procurado a partir dessa posição
     for (int i = 0; i < cache->capacity; i++)
     {
         hashKey = (hashKey + 1) % cache->capacity;   
@@ -323,8 +219,9 @@ int has(int value, struct LRUCache* cache) {
     return -1;
 }
 
+// Gera a posição que um valor deverá ocupar na lista
 int nextHashKey(int value, struct LRUCache* cache) {
-    int key = value % cache->capacity;
+    int key = value % cache->capacity; // Função hash
     
     if (cache->len == cache->capacity)
     {
@@ -333,13 +230,14 @@ int nextHashKey(int value, struct LRUCache* cache) {
     if( cache->hashmap[key] == NULL ) {
         return key;
     }
-    while (cache->hashmap[key] != NULL)
+    while (cache->hashmap[key] != NULL) // Se a posição estiver ocupada retorna a proxima vazia
     {
         key = (key + 1) % cache->capacity;
     }
     return key;
 }
 
+// Adiciona valor na lista
 int put(int value, struct LRUCache* cache) {
     struct ListNode* removed = NULL;
     int removedValue = -1;
@@ -347,12 +245,12 @@ int put(int value, struct LRUCache* cache) {
     // Verifica se o valor ja esta na lista, caso true retorna o index, se false retorna -1
     int indexOf = has( value, cache );     
     if ( indexOf >= 0 ) {
-        // Se a própria chave já estiver na tabela de hash, você não precisa adicionar novos nós na lista.
-        // Mas precisa atualizar o valor do valor do valor do nó de valor correspondente.
-        // Move o nó para o final
+        // Se a própria chave já estiver na tabela de hash, você não precisa adicionar novos nós na lista
+        // Mas precisa atualizar o valor do nó correspondente
+        // Movendo o nó para o final da lista.
         move_node_to_tail( indexOf, cache);
     } else {
-        if ( cache->len == cache->capacity ) {
+        if ( cache->len == cache->capacity ) { // Caso a lista esteje cheia
             // remove
             key = cache->head->next->key;
             cache->hashmap[key] = NULL;
@@ -364,9 +262,9 @@ int put(int value, struct LRUCache* cache) {
             cache->len--;
             free(removed);
         } else {
-            key = nextHashKey( value, cache);
+            key = nextHashKey( value, cache); // Posição que sera inserida
         }
-        
+        // Insere o nó na lista
         struct ListNode* newNode = initNode(value, key);
         cache->hashmap[key] = newNode;
         newNode->prev = cache->tail->prev;
@@ -377,7 +275,7 @@ int put(int value, struct LRUCache* cache) {
         return removedValue;
     }
 }
-
+// Retorna valor buscado
 int get(int value, struct LRUCache* cache) {
     int indexOf = has( value, cache );
     if ( indexOf >= 0 ) {
@@ -388,28 +286,11 @@ int get(int value, struct LRUCache* cache) {
     return -1;
 }
 
-void printList(struct LRUCache* cache){
-   if (cache->head == NULL) {
-        return;
-    }
-
-    struct ListNode* current = cache->head->next;
-    
-    printf("║\n║         LRUCache: Head -> ");
-
-    while( current->next != NULL ) {
-        printf("{ %d }[%d] -> ", current->value, current->key);
-        current = current->next;
-    }
-    
-    printf("Tail\n║\n");
-}
-
 int lru(
     unsigned char **page_table, int number_pages, int previous_page,
     int *fifo_first_frame, int number_frames, int virtual_address, struct LRUCache* cache, int clock )
 {        
-    return put( virtual_address, cache);
+    return put( virtual_address, cache); // Insere o novo nó na lista e retorna o que foi retirado.
 }
 
 int random_page(
@@ -417,28 +298,24 @@ int random_page(
     int *fifo_first_frame, int number_frames, int virtual_address, struct LRUCache* cache, int clock )
 {
     int page = rand() % number_pages;
-    while (page_table[page][PT_MAPPED] == 0)
-    { // Encontra página mapeada
+    while (page_table[page][PT_MAPPED] == 0) { // Encontra página mapeada
         page = rand() % number_pages;
     }
     return page;
 }
 
 // Simulador a partir daqui
-
 int find_next_frame(
     int *physical_memory, int *number_free_frames,
     int number_frames, int *previous_free)
 {
-    if (*number_free_frames == 0)
-    {
+    if (*number_free_frames == 0) {
         return -1;
     }
 
     // Procura por um frame livre de forma circula na memória.
     // Não é muito eficiente, mas fazer um hash em C seria mais custoso.
-    do
-    {
+    do {
         *previous_free = (*previous_free + 1) % number_frames;
     } while (physical_memory[*previous_free] == 1);
 
@@ -447,10 +324,8 @@ int find_next_frame(
 
 // reseta os bits de referencia
 void reset_reference_bit( unsigned char **page_table, int number_pages, int clock ){
-    if (clock == 1)
-    {
-        for (int i = 0; i < number_pages; i++)
-        {
+    if (clock == 1) {
+        for (int i = 0; i < number_pages; i++) {
             page_table[i][PT_REFERENCE_BIT] = 0;
         }
     }
@@ -460,54 +335,38 @@ int simulate(
     unsigned char **page_table, int number_pages, int *previous_page,
     int *fifo_first_frame, int *physical_memory, int *number_free_frames,
     int number_frames, int *previous_free, int virtual_address,
-    char access_type, eviction_function evict, int clock, struct LRUCache* cache,int debug)
+    char access_type, eviction_function evict, int clock, struct LRUCache* cache)
 {
-    if (virtual_address >= number_pages || virtual_address < 0)
-    {
+    if (virtual_address >= number_pages || virtual_address < 0) {
         printf("Invalid access: \n");
         exit(1);
     }
 
-    if (page_table[virtual_address][PT_MAPPED] == 1)
-    {
-        if (debug == 1) {
-            printf("║ ╚═══> Pagina mapeada na memoria fisica...\n║\n");
-        }
+    if (page_table[virtual_address][PT_MAPPED] == 1) {
         page_table[virtual_address][PT_REFERENCE_BIT] = 1; // Bit de referencia
         page_table[virtual_address][PT_AGING_COUNTER] += 128; // Contador aging
         get( virtual_address, cache); // Referencia na cache do LRU
-        if (access_type == WRITE)
-        {
+        if (access_type == WRITE) {
             page_table[virtual_address][PT_DIRTY] = 1;
         }        
         return 0; // Not Page Fault!
     }
 
-    if (debug == 1) {
-        printf("║ ╚═╦═> Pagina não mapeada na memoria fisica\n");
-    }
     int next_frame_address;
-    if ((*number_free_frames) > 0)
-    { // Ainda temos memória física livre!
+    if ((*number_free_frames) > 0) { // Ainda temos memória física livre!
         next_frame_address =
             find_next_frame(physical_memory, number_free_frames, number_frames, previous_free);
-        if (debug == 1) {
-            printf("║   ╚═══> Tem memória física livre, frame: %d\n║\n", next_frame_address);
-        }
-        if (*fifo_first_frame == -1)
+        if (*fifo_first_frame == -1) {
             *fifo_first_frame = next_frame_address;
+        }
         *number_free_frames = *number_free_frames - 1;
         put( virtual_address, cache); // Adiciona a pagina na chache
-    }
-    else
-    { // Precisamos liberar a memória!
+    } else { 
+        // Precisamos liberar a memória!
         assert(*number_free_frames == 0);
         int to_free =
             evict(page_table, number_pages, *previous_page, fifo_first_frame, number_frames, virtual_address, cache, clock);
         next_frame_address = page_table[to_free][PT_FRAMEID];
-        if (debug == 1) {
-            printf("║   ╚═══> Precisamos liberar a memória, Page despejado: %d, Frame liberado: %d\n║\n", to_free, next_frame_address);
-        }
         assert(to_free >= 0);
         assert(to_free < number_pages);
         assert(page_table[to_free][PT_MAPPED] != 0);
@@ -527,8 +386,7 @@ int simulate(
     unsigned char *page_table_data = page_table[virtual_address];
     page_table_data[PT_FRAMEID] = next_frame_address;
     page_table_data[PT_MAPPED] = 1;
-    if (access_type == WRITE)
-    {
+    if (access_type == WRITE) {
         page_table_data[PT_DIRTY] = 1;
     }
     page_table_data[PT_REFERENCE_BIT] = 1;
@@ -544,46 +402,30 @@ int simulate(
 void run(
     unsigned char **page_table, int number_pages, int *previous_page, int *fifo_first_frame, int *physical_memory,
     int *number_free_frames, int number_frames, int *previous_free, eviction_function evict, 
-    int clock_freq, struct LRUCache* cache, int debug)
+    int clock_freq, struct LRUCache* cache)
 {
     int virtual_address;
     char access_type;
     int i = 0;
     int clock = 0;
     int faults = 0;
-    if (debug == 1) {
-        printf("╔ Inicio da simulação...\n║\n");
-    }
-    while (scanf("%d", &virtual_address) == 1)
-    {
+    
+    while (scanf("%d", &virtual_address) == 1) {
         getchar();
         scanf("%c", &access_type);
         clock = ((i + 1) % clock_freq) == 0;
         age(page_table, number_pages);
-        if (debug == 1) {
-            printf("╠═╦═> Endereco virtual: %d, acesso: %c, clock: %d\n", virtual_address, access_type, clock);
-        }
+
         faults += simulate(
             page_table, number_pages, previous_page, fifo_first_frame,
             physical_memory, number_free_frames, number_frames, previous_free,
-            virtual_address, access_type, evict, clock, cache, debug);
+            virtual_address, access_type, evict, clock, cache);
         i++;
-        if (debug == 1)
-        {
-            print_frames(page_table, number_pages, number_frames);
-            printList(cache);
-        }        
     }
-    if (debug == 1) {
-        printf("╚═══> Total de faltas: %d\n", faults);
-    } else {
-        printf("%d\n", faults);
-    }
-    
+    printf("%d\n", faults);    
 }
 
-int parse(char *opt)
-{
+int parse(char *opt) {
     char *remainder;
     int return_val = strtol(opt, &remainder, 10);
     if (strcmp(remainder, opt) == 0)
@@ -594,16 +436,13 @@ int parse(char *opt)
     return return_val;
 }
 
-void read_header(int *number_pages, int *number_frames)
-{
+void read_header(int *number_pages, int *number_frames) {
     scanf("%d %d\n", number_pages, number_frames);
 }
 
-int main(int argc, char **argv)
-{
-    if (argc < 3)
-    {
-        printf("Usage %s <algorithm> <clock_freq> <options>\n", argv[0]);
+int main(int argc, char **argv) {
+    if (argc < 2) {
+        printf("Usage %s <algorithm> <clock_freq>\n", argv[0]);
         printf("Algorithms: fifo, second_chance, nru, aging, lru, random\n");
         exit(1);
     }
@@ -612,14 +451,9 @@ int main(int argc, char **argv)
     int clock_freq = parse(argv[2]);
     int number_pages;
     int number_frames;
-    int debug = 0;
+    
     read_header(&number_pages, &number_frames);
-
-    // Verifica se esta no modo debug
-    if (argc >= 4 && strcmp(argv[3], "debug") == 0){
-        debug = 1;
-    }
-
+    
     // Aponta para cada função que realmente roda a política de parse
     paging_policy_table policies[] =
     {
@@ -638,10 +472,7 @@ int main(int argc, char **argv)
     {
         if (strcmp(policies[i].name, algorithm) == 0)
         {
-            evict = policies[i].function;
-            if (debug == 1) {
-                printf("Algoritimo escolhido: %s...\n", algorithm);
-            }            
+            evict = policies[i].function;    
             break;
         }
     }
@@ -672,10 +503,7 @@ int main(int argc, char **argv)
     {
         physical_memory[i] = 0;
     }
-    if (debug == 1)
-    {
-        printf("Memoria alocada com %d frames...\n", number_frames);
-    }
+
     int number_free_frames = number_frames;
     int previous_free = -1;
     int previous_page = -1;
@@ -688,13 +516,19 @@ int main(int argc, char **argv)
     // Roda o simulador
     run(
         page_table, number_pages, &previous_page, &fifo_first_frame, physical_memory,
-        &number_free_frames, number_frames, &previous_free, evict, clock_freq, &cache, debug);
+        &number_free_frames, number_frames, &previous_free, evict, clock_freq, &cache);
 
     // Liberando os mallocs
-    for (int i = 0; i < number_pages; i++)
-    {
+    for (int i = 0; i < number_pages; i++) {
         free(page_table[i]);
     }
     free(page_table);
     free(physical_memory);
+
+    for (int i = 0; i < number_frames; i++)
+    {
+        free(cache.hashmap[i]);
+    }
+
+    return 0;
 }
