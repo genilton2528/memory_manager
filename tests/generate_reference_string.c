@@ -84,6 +84,14 @@ int main(int argc, char const *argv[])
     int* prob;    
     int sumProb;
     
+    srand(time(NULL));
+    for (int i = 0; i < 100; i++)
+    {
+        random = rand() % 20;
+        printf("%d %c\n", random, type_access(rand()));
+    }
+    return 0;
+
     if (argc < 4)
     {
         printf("program <pages> <requests> <range>");
