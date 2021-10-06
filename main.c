@@ -55,7 +55,7 @@ typedef struct
 //
 // Adicione mais parâmetros caso ache necessário
 
-// Algoritimos
+// Algoritmos
 int fifo(
     unsigned char **page_table, int number_pages, int previous_page,
     int *fifo_first_frame, int number_frames, int virtual_address, struct LRUCache* cache, int clock )
